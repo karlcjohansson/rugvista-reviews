@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rugvista — Review Analytics</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f9fafb; color: #111827; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
+  h1 { font-size: 22px; font-weight: 700; }
+  h2 { font-size: 16px; font-weight: 600; margin-bottom: 4px; color: #111827; }
+  h2 .muted { font-weight: 400; color: #6b7280; font-size: 13px; margin-left: 6px; }
+  .subtitle { color: #6b7280; font-size: 13px; margin-top: 4px; }
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 20px 0 28px; }
+  .stat-card { background: #fff; border-radius: 12px; padding: 14px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border: 1px solid #f3f4f6; }
+  .stat-label { font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; }
+  .stat-value { font-size: 20px; font-weight: 700; margin-top: 4px; }
+  .stat-sub { font-size: 10px; color: #9ca3af; }
+  .btn-group { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+  .btn { padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid #e5e7eb; background: #fff; color: #4b5563; transition: all 0.15s; }
+  .btn:hover { background: #f9fafb; }
+  .btn.active { background: #4f46e5; color: #fff; border-color: #4f46e5; }
+  .btn-sm { padding: 4px 10px; font-size: 11px; border-radius: 6px; }
+  .btn-sm.active-dark { background: #1f2937; color: #fff; border-color: #1f2937; }
+  .section { margin-top: 32px; }
+  .section-caption { color: #6b7280; font-size: 12px; margin-bottom: 12px; margin-top: 2px; }
+  .chart-card { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border: 1px solid #f3f4f6; position: relative; }
+  .chart-card canvas { max-height: 380px; }
+  .chart-card.tall canvas { max-height: 440px; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .insight { background: #fffbeb; border-left: 3px solid #f59e0b; border-radius: 6px; padding: 10px 14px; margin-bottom: 14px; font-size: 13px; color: #78350f; }
+  .insight strong { color: #92400e; }
+  .insight.red { background: #fef2f2; border-left-color: #ef4444; color: #991b1b; }
+  .insight.red strong { color: #7f1d1d; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 10px 12px; color: #6b7280; font-weight: 500; border-bottom: 1px solid #f3f4f6; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; }
+  td { padding: 10px 12px; border-bottom: 1px solid #f9fafb; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom: none; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; }
+  .badge-red { background: #fee2e2; color: #991b1b; }
+  .badge-yellow { background: #fef3c7; color: #92400e; }
+  .footer { font-size: 11px; color: #9ca3af; text-align: center; margin-top: 30px; }
+  #yearFilters { display: none; }
+  #yearFilters.show { display: flex; }
+  a { color: #4f46e5; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  @media (max-width: 768px) {
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .two-col { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div style="margin-bottom: 8px;">
+    <h1>Rugvista — Review Analytics</h1>
+    <p class="subtitle">Monthly reviews, rating trends, and customer signals (2017 – Mar 2026) from 14,898 individual reviews across 583 products. 100% coverage.</p>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label">Total Reviews (all time)</div>
+      <div class="stat-value">14,898</div>
+      <div class="stat-sub">across 583 products</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Avg Rating (overall)</div>
+      <div class="stat-value">4.71 ★</div>
+      <div class="stat-sub">↓ 4.78 (2023) → 4.53 (2025)</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Peak Month</div>
+      <div class="stat-value" id="statPeak"></div>
+      <div class="stat-sub" id="statPeakCount"></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Top 20 Products</div>
+      <div class="stat-value">50.1%</div>
+      <div class="stat-sub">of all reviews (3.4% of catalog)</div>
+    </div>
+  </div>
+
+  <!-- Section 1: Monthly volume -->
+  <div class="section">
+    <h2>Monthly Review Volume <span class="muted">— 2021 to Mar 2026</span></h2>
+    <p class="section-caption">Sharp spike in Nov 2025 → Jan 2026 (552 reviews in Jan, ~5× the historical monthly average). Consistent with an aggressive review-solicitation push.</p>
+
+    <div class="btn-group" id="viewButtons">
+      <button class="btn active" data-view="monthly">Monthly</button>
+      <button class="btn" data-view="yearly">Yearly</button>
+      <button class="btn" data-view="yoy">Year-over-Year</button>
+    </div>
+
+    <div class="btn-group" id="yearFilters">
+      <button class="btn btn-sm active-dark" data-year="all">All Years</button>
+      <button class="btn btn-sm" data-year="2021">2021</button>
+      <button class="btn btn-sm" data-year="2022">2022</button>
+      <button class="btn btn-sm" data-year="2023">2023</button>
+      <button class="btn btn-sm" data-year="2024">2024</button>
+      <button class="btn btn-sm" data-year="2025">2025</button>
+      <button class="btn btn-sm" data-year="2026">2026</button>
+    </div>
+
+    <div class="chart-card tall"><canvas id="chartVolume"></canvas></div>
+  </div>
+
+  <!-- Section 2: Rating decline -->
+  <div class="section">
+    <h2>Rating Distribution by Year <span class="muted">— the standout finding</span></h2>
+    <p class="section-caption">5★ share fell from 87.1% (2023) to 78.9% (2025). 1★ ratings tripled over the same period (1.9% → 5.7%).</p>
+    <div class="insight red">⚠ <strong>Quality signal:</strong> Average rating dropped from 4.78 in 2023 → 4.53 in 2025 (−0.25 ★). The distribution shift is real and persists into 2026 YTD (4.60).</div>
+    <div class="chart-card"><canvas id="chartRatings"></canvas></div>
+  </div>
+
+  <!-- Section 2b: Sub-ratings -->
+  <div class="section">
+    <h2>Quality / Delivery / Value / Customer Service Over Time</h2>
+    <p class="section-caption">All four sub-ratings declined in sync from 2023 → 2025. Quality fell furthest (−0.27), Customer Service held up best but still dropped −0.23.</p>
+    <div class="insight">🔍 <strong>Diagnostic view:</strong> The decline isn't isolated to one function — it's across product, logistics, pricing and support. Suggests systemic issues (e.g., broader catalog sourcing, fulfilment partner, or post-solicitation audience shift) rather than a single cause.</div>
+    <div class="chart-card"><canvas id="chartSubRatings"></canvas></div>
+  </div>
+
+  <!-- Section 2c: Market decline -->
+  <div class="section">
+    <h2>Rating Decline by Market <span class="muted">— 2023 vs 2025</span></h2>
+    <p class="section-caption">Swedish customers collapsed from 4.72 → 2.95 (only 20 reviews in 2025, but striking). Polish (−0.46), Portuguese (−0.39), French (−0.35), Italian (−0.32) also cooled sharply.</p>
+    <div class="insight red">🇸🇪 <strong>Home-market signal:</strong> Swedish reviews dropped to a 2.95 avg in 2025. Low volume (n=20) but worth investigating — could indicate an SE-specific issue or a biased solicitation sample.</div>
+    <div class="chart-card"><canvas id="chartMarket"></canvas></div>
+  </div>
+
+  <!-- Section 3: Pareto -->
+  <div class="section">
+    <h2>Review Concentration (Pareto) <span class="muted">— long-tail catalog</span></h2>
+    <p class="section-caption">Just 3.4% of the catalog drives half of all reviews. Top product alone has 1,223 reviews (8.2% of total).</p>
+    <div class="chart-card"><canvas id="chartPareto"></canvas></div>
+  </div>
+
+  <!-- Section 4: Day of week + Product lines -->
+  <div class="two-col section">
+    <div>
+      <h2>Day-of-Week Pattern</h2>
+      <p class="section-caption">Reviews peak Thu–Fri, drop sharply on Sun/Mon.</p>
+      <div class="chart-card"><canvas id="chartDOW"></canvas></div>
+    </div>
+    <div>
+      <h2>Product Line: RVD vs CVD</h2>
+      <p class="section-caption">CVD (4.76 ★) rates higher than RVD (4.67 ★). CVD = classic/vintage designs; RVD = standard Rugvista designs.</p>
+      <div class="chart-card"><canvas id="chartLines"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Section 5: Language mix -->
+  <div class="section">
+    <h2>Geographic Mix (by review language)</h2>
+    <p class="section-caption">Pan-European customer base. Norwegian (6.3%) and Portuguese (6.0%) customers submit the highest share of 1–2★ reviews; Danish (2.1%) and Spanish (2.6%) the lowest.</p>
+    <div class="chart-card"><canvas id="chartLang"></canvas></div>
+  </div>
+
+  <!-- Section 5b: Domain-based -->
+  <div class="section">
+    <h2>Storefront Health by Domain <span class="muted">— low-rating share</span></h2>
+    <p class="section-caption">Review locale (domain the customer purchased from). Austrian (10.6%) and Swedish (9.7%) storefronts show the most dissatisfaction — meaningfully worse than the dominant rugvista.com (2.6%).</p>
+    <div class="insight">🏠 <strong>Sweden is the home market but shows unhappy customers.</strong> rugvista.se has just 195 reviews in the dataset (1.3% of total) yet 9.7% are 1–2★ — roughly 4× the .com rate. rugvista.at (10.6%) is small but similarly skewed.</div>
+    <div class="chart-card"><canvas id="chartDomain"></canvas></div>
+  </div>
+
+  <!-- Section 6: Worst-rated products -->
+  <div class="section">
+    <h2>Products Needing Attention <span class="muted">— lowest-rated with ≥20 reviews</span></h2>
+    <p class="section-caption">These products drag down site average (4.71). Worth investigating for quality, sizing, or photo-vs-reality issues.</p>
+    <div class="chart-card" style="padding: 0;">
+      <table>
+        <thead>
+          <tr><th>SKU</th><th class="num">Avg Rating</th><th class="num">Reviews</th><th>Status</th></tr>
+        </thead>
+        <tbody id="worstTable"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <p class="footer">Based on 14,898 individual dated reviews across 583 products. Data through March 2026. Overall site avg: 4.71 ★ — 100% review coverage.</p>
+</div>
+
+<script>
+// ============ DATA ============
+const monthlyData = [
+  { month: "2021-01", reviews: 229 }, { month: "2021-02", reviews: 140 }, { month: "2021-03", reviews: 150 },
+  { month: "2021-04", reviews: 118 }, { month: "2021-05", reviews: 83 },  { month: "2021-06", reviews: 68 },
+  { month: "2021-07", reviews: 59 },  { month: "2021-08", reviews: 72 },  { month: "2021-09", reviews: 69 },
+  { month: "2021-10", reviews: 99 },  { month: "2021-11", reviews: 127 }, { month: "2021-12", reviews: 111 },
+  { month: "2022-01", reviews: 112 }, { month: "2022-02", reviews: 98 },  { month: "2022-03", reviews: 79 },
+  { month: "2022-04", reviews: 92 },  { month: "2022-05", reviews: 49 },  { month: "2022-06", reviews: 152 },
+  { month: "2022-07", reviews: 164 }, { month: "2022-08", reviews: 136 }, { month: "2022-09", reviews: 165 },
+  { month: "2022-10", reviews: 198 }, { month: "2022-11", reviews: 147 }, { month: "2022-12", reviews: 200 },
+  { month: "2023-01", reviews: 113 }, { month: "2023-02", reviews: 186 }, { month: "2023-03", reviews: 232 },
+  { month: "2023-04", reviews: 144 }, { month: "2023-05", reviews: 149 }, { month: "2023-06", reviews: 85 },
+  { month: "2023-07", reviews: 123 }, { month: "2023-08", reviews: 132 }, { month: "2023-09", reviews: 112 },
+  { month: "2023-10", reviews: 158 }, { month: "2023-11", reviews: 209 }, { month: "2023-12", reviews: 157 },
+  { month: "2024-01", reviews: 135 }, { month: "2024-02", reviews: 145 }, { month: "2024-03", reviews: 102 },
+  { month: "2024-04", reviews: 85 },  { month: "2024-05", reviews: 66 },  { month: "2024-06", reviews: 75 },
+  { month: "2024-07", reviews: 104 }, { month: "2024-08", reviews: 86 },  { month: "2024-09", reviews: 95 },
+  { month: "2024-10", reviews: 107 }, { month: "2024-11", reviews: 176 }, { month: "2024-12", reviews: 173 },
+  { month: "2025-01", reviews: 136 }, { month: "2025-02", reviews: 124 }, { month: "2025-03", reviews: 130 },
+  { month: "2025-04", reviews: 129 }, { month: "2025-05", reviews: 139 }, { month: "2025-06", reviews: 97 },
+  { month: "2025-07", reviews: 101 }, { month: "2025-08", reviews: 111 }, { month: "2025-09", reviews: 159 },
+  { month: "2025-10", reviews: 165 }, { month: "2025-11", reviews: 392 }, { month: "2025-12", reviews: 215 },
+  { month: "2026-01", reviews: 552 }, { month: "2026-02", reviews: 276 }, { month: "2026-03", reviews: 351 },
+];
+
+// Rating dist by year (percentages). Includes pre-2021 for context.
+const ratingsByYear = [
+  { year: "2017", n: 479,  r5: 85.8, r4: 10.6, r3: 2.5, r2: 0.4, r1: 0.6, avg: 4.81 },
+  { year: "2018", n: 1387, r5: 84.4, r4: 12.0, r3: 2.0, r2: 0.9, r1: 0.6, avg: 4.79 },
+  { year: "2019", n: 2163, r5: 80.9, r4: 14.2, r3: 2.3, r2: 0.9, r1: 1.7, avg: 4.72 },
+  { year: "2020", n: 1516, r5: 82.9, r4: 12.8, r3: 2.0, r2: 0.5, r1: 1.8, avg: 4.75 },
+  { year: "2021", n: 1325, r5: 82.6, r4: 12.0, r3: 2.4, r2: 1.2, r1: 1.7, avg: 4.73 },
+  { year: "2022", n: 1592, r5: 86.8, r4: 9.2,  r3: 1.4, r2: 0.7, r1: 1.8, avg: 4.79 },
+  { year: "2023", n: 1800, r5: 87.1, r4: 8.1,  r3: 2.2, r2: 0.8, r1: 1.9, avg: 4.78 },
+  { year: "2024", n: 1349, r5: 84.1, r4: 8.5,  r3: 2.6, r2: 1.0, r1: 3.9, avg: 4.68 },
+  { year: "2025", n: 1898, r5: 78.9, r4: 8.4,  r3: 5.0, r2: 2.1, r1: 5.7, avg: 4.53 },
+  { year: "2026", n: 1389, r5: 78.6, r4: 11.0, r3: 4.9, r2: 2.4, r1: 3.0, avg: 4.60 },
+];
+
+// Pareto: cumulative % of reviews vs top-N products (583 total products)
+const paretoData = [
+  { rank: 1,   cum: 8.2 },
+  { rank: 5,   cum: 24.2 },
+  { rank: 10,  cum: 36.7 },
+  { rank: 20,  cum: 50.1 },
+  { rank: 40,  cum: 67.9 },
+  { rank: 60,  cum: 76.6 },
+  { rank: 100, cum: 86.4 },
+  { rank: 150, cum: 92.4 },
+  { rank: 200, cum: 95.3 },
+  { rank: 300, cum: 98.3 },
+  { rank: 400, cum: 99.6 },
+  { rank: 583, cum: 100.0 },
+];
+
+const dowData = [
+  { day: "Mon", count: 1235 }, { day: "Tue", count: 2147 }, { day: "Wed", count: 2560 },
+  { day: "Thu", count: 2847 }, { day: "Fri", count: 2777 }, { day: "Sat", count: 2192 }, { day: "Sun", count: 1140 },
+];
+
+const productLines = [
+  { line: "RVD", designs: 422, reviews: 9039, avg: 4.67 },
+  { line: "CVD", designs: 160, reviews: 5829, avg: 4.76 },
+];
+
+const langData = [
+  { code: "en", name: "English",    count: 3092, lowPct: 3.1 },
+  { code: "de", name: "German",     count: 2448, lowPct: 4.0 },
+  { code: "fr", name: "French",     count: 1947, lowPct: 4.0 },
+  { code: "nl", name: "Dutch",      count: 1866, lowPct: 2.8 },
+  { code: "da", name: "Danish",     count: 1173, lowPct: 2.1 },
+  { code: "sv", name: "Swedish",    count: 969,  lowPct: 3.9 },
+  { code: "it", name: "Italian",    count: 873,  lowPct: 3.7 },
+  { code: "pl", name: "Polish",     count: 649,  lowPct: 4.6 },
+  { code: "es", name: "Spanish",    count: 606,  lowPct: 2.6 },
+  { code: "no", name: "Norwegian",  count: 493,  lowPct: 6.3 },
+  { code: "fi", name: "Finnish",    count: 335,  lowPct: 3.6 },
+  { code: "pt", name: "Portuguese", count: 234,  lowPct: 6.0 },
+];
+
+const domainData = [
+  { domain: "rugvista.at",    count: 85,   lowPct: 10.6, avg: 4.51 },
+  { domain: "rugvista.se",    count: 195,  lowPct: 9.7,  avg: 4.44 },
+  { domain: "rugvista.cz",    count: 69,   lowPct: 7.2,  avg: 4.48 },
+  { domain: "rugvista.pl",    count: 338,  lowPct: 7.1,  avg: 4.62 },
+  { domain: "rugvista.pt",    count: 158,  lowPct: 7.0,  avg: 4.59 },
+  { domain: "rugvista.no",    count: 300,  lowPct: 6.0,  avg: 4.53 },
+  { domain: "rugvista.ro",    count: 107,  lowPct: 5.6,  avg: 4.70 },
+  { domain: "rugvista.fr",    count: 923,  lowPct: 5.3,  avg: 4.62 },
+  { domain: "rugvista.it",    count: 391,  lowPct: 4.9,  avg: 4.61 },
+  { domain: "rugvista.co.uk", count: 312,  lowPct: 4.8,  avg: 4.70 },
+  { domain: "rugvista.de",    count: 1406, lowPct: 4.3,  avg: 4.70 },
+  { domain: "rugvista.fi",    count: 199,  lowPct: 4.0,  avg: 4.64 },
+  { domain: "rugvista.ch",    count: 181,  lowPct: 3.9,  avg: 4.62 },
+  { domain: "rugvista.nl",    count: 768,  lowPct: 3.6,  avg: 4.66 },
+  { domain: "rugvista.es",    count: 309,  lowPct: 3.2,  avg: 4.66 },
+  { domain: "rugvista.dk",    count: 695,  lowPct: 2.7,  avg: 4.74 },
+  { domain: "rugvista.com",   count: 8222, lowPct: 2.6,  avg: 4.75 },
+];
+
+const subRatingsByYear = [
+  { year: "2022", quality: 4.75, delivery: 4.74, value: 4.75, custserv: 4.78, overall: 4.79 },
+  { year: "2023", quality: 4.75, delivery: 4.77, value: 4.73, custserv: 4.85, overall: 4.78 },
+  { year: "2024", quality: 4.65, delivery: 4.76, value: 4.63, custserv: 4.80, overall: 4.68 },
+  { year: "2025", quality: 4.49, delivery: 4.54, value: 4.51, custserv: 4.61, overall: 4.53 },
+  { year: "2026", quality: 4.53, delivery: 4.57, value: 4.56, custserv: 4.63, overall: 4.60 },
+];
+
+const marketDecline = [
+  { name: "Swedish",    r2023: 4.72, r2025: 2.95, n25: 20  },
+  { name: "Polish",     r2023: 4.80, r2025: 4.34, n25: 126 },
+  { name: "Portuguese", r2023: 4.72, r2025: 4.33, n25: 49  },
+  { name: "French",     r2023: 4.76, r2025: 4.41, n25: 248 },
+  { name: "Italian",    r2023: 4.88, r2025: 4.56, n25: 112 },
+  { name: "Norwegian",  r2023: 4.61, r2025: 4.35, n25: 111 },
+  { name: "Dutch",      r2023: 4.82, r2025: 4.56, n25: 171 },
+  { name: "Spanish",    r2023: 4.83, r2025: 4.62, n25: 72  },
+  { name: "English",    r2023: 4.82, r2025: 4.62, n25: 386 },
+  { name: "German",     r2023: 4.78, r2025: 4.62, n25: 353 },
+  { name: "Danish",     r2023: 4.71, r2025: 4.68, n25: 157 },
+  { name: "Finnish",    r2023: 4.39, r2025: 4.68, n25: 44  },
+].sort((a,b) => (a.r2025-a.r2023) - (b.r2025-b.r2023));
+
+const worstProducts = [
+  { sku: "RVD39894", rating: 3.80, reviews: 30, status: "Critical" },
+  { sku: "RVD40083", rating: 4.10, reviews: 73, status: "Critical" },
+  { sku: "RVD31958", rating: 4.20, reviews: 23, status: "Watch" },
+  { sku: "RVD44138", rating: 4.30, reviews: 44, status: "Watch" },
+  { sku: "RVD40194", rating: 4.30, reviews: 51, status: "Watch" },
+  { sku: "RVD39574", rating: 4.30, reviews: 27, status: "Watch" },
+  { sku: "RVD44686", rating: 4.30, reviews: 20, status: "Watch" },
+  { sku: "RVD33506", rating: 4.30, reviews: 20, status: "Watch" },
+  { sku: "CVD40044", rating: 4.40, reviews: 38, status: "Watch" },
+  { sku: "RVD39788", rating: 4.40, reviews: 50, status: "Watch" },
+];
+
+const yearColors = { 2017: "#0ea5e9", 2018: "#14b8a6", 2019: "#84cc16", 2020: "#eab308", 2021: "#6366f1", 2022: "#8b5cf6", 2023: "#ec4899", 2024: "#f97316", 2025: "#10b981", 2026: "#3b82f6" };
+const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+// ============ STATS ============
+const peak = monthlyData.reduce((a, b) => a.reviews > b.reviews ? a : b);
+document.getElementById("statPeak").textContent = peak.month;
+document.getElementById("statPeakCount").textContent = peak.reviews.toLocaleString() + " reviews";
+
+// ============ VOLUME CHART ============
+const volCtx = document.getElementById("chartVolume").getContext("2d");
+let volChart = null;
+let volView = "monthly";
+let volYear = "all";
+
+function destroyVol() { if (volChart) { volChart.destroy(); volChart = null; } }
+
+function renderVolMonthly(year) {
+  destroyVol();
+  const data = year === "all" ? monthlyData : monthlyData.filter(d => d.month.startsWith(year));
+  const bg = data.map(d => yearColors[parseInt(d.month.slice(0, 4))] + "30");
+  const border = data.map(d => yearColors[parseInt(d.month.slice(0, 4))]);
+  volChart = new Chart(volCtx, {
+    type: "bar",
+    data: { labels: data.map(d => d.month), datasets: [{ data: data.map(d => d.reviews), backgroundColor: bg, borderColor: border, borderWidth: 1.5, borderRadius: 3 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { backgroundColor: "#111827", callbacks: { label: c => c.parsed.y.toLocaleString() + " reviews" } } },
+      scales: { x: { ticks: { maxRotation: 45, font: { size: 10 }, color: "#9ca3af" }, grid: { display: false } }, y: { ticks: { font: { size: 11 }, color: "#9ca3af", callback: v => v.toLocaleString() }, grid: { color: "#f3f4f6" } } }
+    }
+  });
+}
+
+function renderVolYearly() {
+  destroyVol();
+  const grouped = {};
+  monthlyData.forEach(d => { const y = d.month.slice(0,4); grouped[y] = (grouped[y] || 0) + d.reviews; });
+  const years = Object.keys(grouped).sort();
+  volChart = new Chart(volCtx, {
+    type: "bar",
+    data: { labels: years, datasets: [{ data: years.map(y => grouped[y]), backgroundColor: years.map(y => yearColors[parseInt(y)] + "40"), borderColor: years.map(y => yearColors[parseInt(y)]), borderWidth: 2, borderRadius: 6 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { backgroundColor: "#111827", callbacks: { label: c => c.parsed.y.toLocaleString() + " reviews" } } },
+      scales: { x: { ticks: { font: { size: 13, weight: "500" }, color: "#374151" }, grid: { display: false } }, y: { ticks: { font: { size: 11 }, color: "#9ca3af", callback: v => v.toLocaleString() }, grid: { color: "#f3f4f6" } } }
+    }
+  });
+}
+
+function renderVolYoY() {
+  destroyVol();
+  const years = [2021, 2022, 2023, 2024, 2025, 2026];
+  const datasets = years.map(y => ({
+    label: String(y),
+    data: monthNames.map((_, i) => { const k = `${y}-${String(i+1).padStart(2,"0")}`; const f = monthlyData.find(d => d.month === k); return f ? f.reviews : null; }),
+    borderColor: yearColors[y], backgroundColor: yearColors[y] + "20", borderWidth: 2.5, pointRadius: 3, pointBackgroundColor: yearColors[y], tension: 0.3, spanGaps: false
+  }));
+  volChart = new Chart(volCtx, {
+    type: "line",
+    data: { labels: monthNames, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: "top", labels: { usePointStyle: true, pointStyle: "circle", padding: 20, font: { size: 12 } } }, tooltip: { backgroundColor: "#111827", callbacks: { label: c => c.dataset.label + ": " + (c.parsed.y ? c.parsed.y.toLocaleString() : "—") + " reviews" } } },
+      scales: { x: { ticks: { font: { size: 12 }, color: "#374151" }, grid: { display: false } }, y: { ticks: { font: { size: 11 }, color: "#9ca3af", callback: v => v.toLocaleString() }, grid: { color: "#f3f4f6" } } }
+    }
+  });
+}
+
+function setView(v) {
+  volView = v;
+  document.querySelectorAll("#viewButtons .btn").forEach(b => b.classList.toggle("active", b.dataset.view === v));
+  document.getElementById("yearFilters").classList.toggle("show", v === "monthly");
+  if (v === "monthly") renderVolMonthly(volYear);
+  else if (v === "yearly") renderVolYearly();
+  else renderVolYoY();
+}
+
+function setYear(y) {
+  volYear = y;
+  document.querySelectorAll("#yearFilters .btn").forEach(b => {
+    b.classList.remove("active-dark"); b.style.backgroundColor = ""; b.style.color = ""; b.style.borderColor = "";
+    if (b.dataset.year === y) {
+      if (y === "all") b.classList.add("active-dark");
+      else { b.style.backgroundColor = yearColors[parseInt(y)]; b.style.color = "#fff"; b.style.borderColor = yearColors[parseInt(y)]; }
+    }
+  });
+  renderVolMonthly(y);
+}
+
+document.querySelectorAll("#viewButtons .btn").forEach(b => b.addEventListener("click", () => setView(b.dataset.view)));
+document.querySelectorAll("#yearFilters .btn").forEach(b => b.addEventListener("click", () => setYear(b.dataset.year)));
+
+// ============ RATINGS STACKED BAR ============
+new Chart(document.getElementById("chartRatings").getContext("2d"), {
+  type: "bar",
+  data: {
+    labels: ratingsByYear.map(d => d.year + ` (n=${d.n.toLocaleString()})`),
+    datasets: [
+      { label: "5 ★", data: ratingsByYear.map(d => d.r5), backgroundColor: "#10b981" },
+      { label: "4 ★", data: ratingsByYear.map(d => d.r4), backgroundColor: "#84cc16" },
+      { label: "3 ★", data: ratingsByYear.map(d => d.r3), backgroundColor: "#f59e0b" },
+      { label: "2 ★", data: ratingsByYear.map(d => d.r2), backgroundColor: "#f97316" },
+      { label: "1 ★", data: ratingsByYear.map(d => d.r1), backgroundColor: "#ef4444" },
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false, indexAxis: "y",
+    plugins: { legend: { position: "top", labels: { usePointStyle: true, padding: 16, font: { size: 12 } } }, tooltip: { backgroundColor: "#111827", callbacks: { label: c => c.dataset.label + ": " + c.parsed.x.toFixed(1) + "%" } } },
+    scales: {
+      x: { stacked: true, max: 100, ticks: { callback: v => v + "%", font: { size: 11 }, color: "#9ca3af" }, grid: { color: "#f3f4f6" } },
+      y: { stacked: true, ticks: { font: { size: 12 }, color: "#374151" }, grid: { display: false } }
+    }
+  }
+});
+
+// ============ PARETO ============
+new Chart(document.getElementById("chartPareto").getContext("2d"), {
+  type: "line",
+  data: {
+    labels: paretoData.map(d => `Top ${d.rank}`),
+    datasets: [{
+      label: "Cumulative % of reviews",
+      data: paretoData.map(d => d.cum),
+      borderColor: "#4f46e5",
+      backgroundColor: "rgba(79,70,229,0.1)",
+      fill: true, tension: 0.4, pointRadius: 5, pointBackgroundColor: "#4f46e5"
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { backgroundColor: "#111827", callbacks: { label: c => c.parsed.y.toFixed(1) + "% of reviews" } } },
+    scales: { x: { ticks: { font: { size: 11 }, color: "#9ca3af" }, grid: { display: false } }, y: { max: 100, ticks: { callback: v => v + "%", font: { size: 11 }, color: "#9ca3af" }, grid: { color: "#f3f4f6" } } }
+  }
+});
+
+// ============ DAY OF WEEK ============
+new Chart(document.getElementById("chartDOW").getContext("2d"), {
+  type: "bar",
+  data: {
+    labels: dowData.map(d => d.day),
+    datasets: [{ data: dowData.map(d => d.count), backgroundColor: dowData.map(d => (d.day === "Sun" || d.day === "Mon") ? "#ef4444aa" : "#6366f1aa"), borderColor: dowData.map(d => (d.day === "Sun" || d.day === "Mon") ? "#ef4444" : "#6366f1"), borderWidth: 1.5, borderRadius: 4 }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { backgroundColor: "#111827", callbacks: { label: c => c.parsed.y.toLocaleString() + " reviews" } } },
+    scales: { x: { ticks: { font: { size: 11 }, color: "#374151" }, grid: { display: false } }, y: { ticks: { font: { size: 11 }, color: "#9ca3af" }, grid: { color: "#f3f4f6" } } }
+  }
+});
+
+// ============ PRODUCT LINES ============
+new Chart(document.getElementById("chartLines").getContext("2d"), {
+  type: "bar",
+  data: {
+    labels: productLines.map(d => `${d.line} (${d.designs} designs)`),
+    datasets: [{
+      label: "Avg rating", data: productLines.map(d => d.avg),
+      backgroundColor: ["#6366f1aa", "#10b981aa"], borderColor: ["#6366f1", "#10b981"], borderWidth: 1.5, borderRadius: 6
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { backgroundColor: "#111827", callbacks: { label: c => `${c.parsed.y.toFixed(2)} ★ — ${productLines[c.dataIndex].reviews.toLocaleString()} reviews` } } },
+    scales: { x: { ticks: { font: { size: 12 }, color: "#374151" }, grid: { display: false } }, y: { min: 4.0, max: 5.0, ticks: { font: { size: 11 }, color: "#9ca3af", callback: v => v.toFixed(1) + " ★" }, grid: { color: "#f3f4f6" } } }
+  }
+});
+
+// ============ LANGUAGES ============
+new Chart(document.getElementById("chartLang").getContext("2d"), {
+  type: "bar",
+  data: {
+    labels: langData.map(d => d.name),
+    datasets: [
+      { label: "Reviews", data: langData.map(d => d.count), backgroundColor: "#6366f1aa", borderColor: "#6366f1", borderWidth: 1.5, borderRadius: 3, yAxisID: "y" },
+      { label: "Low-rating %", data: langData.map(d => d.lowPct), type: "line", borderColor: "#ef4444", backgroundColor: "transparent", pointBackgroundColor: "#ef4444", pointRadius: 4, borderWidth: 2.5, tension: 0.2, yAxisID: "y1" }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: "top", labels: { usePointStyle: true, padding: 16, font: { size: 12 } } }, tooltip: { backgroundColor: "#111827" } },
+    scales: {
+      x: { ticks: { font: { size: 11 }, color: "#374151" }, grid: { display: false } },
+      y: { position: "left", ticks: { font: { size: 11 }, color: "#9ca3af", callback: v => v.toLocaleString() }, grid: { color: "#f3f4f6" }, title: { display: true, text: "Review count", color: "#6b7280", font: { size: 11 } } },
+      y1: { position: "right", ticks: { font: { size: 11 }, color: "#ef4444", callback: v => v + "%" }, grid: { display: false }, title: { display: true, text: "Low-rating % (1-2★)", color: "#ef4444", font: { size: 11 } } }
+    }
+  }
+});
+
+// ============ DOMAIN ============
+new Chart(document.getElementById("chartDomain").getContext("2d"), {
+  type: "bar",
+  data: {
+    labels: domainData.map(d => d.domain),
+    datasets: [
+      { label: "Reviews (log)", data: domainData.map(d => d.count), backgroundColor: "#6366f1aa", borderColor: "#6366f1", borderWidth: 1.5, borderRadius: 3, yAxisID: "y" },
+      { label: "Low-rating %", data: domainData.map(d => d.lowPct), type: "line", borderColor: "#ef4444", backgroundColor: "transparent", pointBackgroundColor: "#ef4444", pointRadius: 4, borderWidth: 2.5, tension: 0.2, yAxisID: "y1" }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { position: "top", labels: { usePointStyle: true, padding: 16, font: { size: 12 } } },
+      tooltip: {
+        backgroundColor: "#111827",
+        callbacks: {
+          label: c => {
+            const d = domainData[c.dataIndex];
+            if (c.dataset.label === "Low-rating %") return `Low-rating (1–2★): ${d.lowPct.toFixed(1)}%  •  avg ${d.avg.toFixed(2)} ★`;
+            return `${d.count.toLocaleString()} reviews`;
+          }
+        }
+      }
+    },
+    scales: {
+      x: { ticks: { font: { size: 10 }, color: "#374151", maxRotation: 45, minRotation: 45 }, grid: { display: false } },
+      y: { position: "left", type: "logarithmic", ticks: { font: { size: 11 }, color: "#9ca3af", callback: v => v >= 100 ? v.toLocaleString() : "" }, grid: { color: "#f3f4f6" }, title: { display: true, text: "Review count (log)", color: "#6b7280", font: { size: 11 } } },
+      y1: { position: "right", ticks: { font: { size: 11 }, color: "#ef4444", callback: v => v + "%" }, grid: { display: false }, title: { display: true, text: "Low-rating % (1–2★)", color: "#ef4444", font: { size: 11 } } }
+    }
+  }
+});
+
+// ============ WORST TABLE ============
+const worstTbody = document.getElementById("worstTable");
+worstProducts.forEach(p => {
+  const tr = document.createElement("tr");
+  const badgeClass = p.status === "Critical" ? "badge-red" : "badge-yellow";
+  tr.innerHTML = `<td><strong>${p.sku}</strong></td><td class="num">${p.rating.toFixed(2)} ★</td><td class="num">${p.reviews}</td><td><span class="badge ${badgeClass}">${p.status}</span></td>`;
+  worstTbody.appendChild(tr);
+});
+
+// ============ SUB-RATINGS ============
+new Chart(document.getElementById("chartSubRatings").getContext("2d"), {
+  type: "line",
+  data: {
+    labels: subRatingsByYear.map(d => d.year),
+    datasets: [
+      { label: "Quality",  data: subRatingsByYear.map(d => d.quality),  borderColor: "#6366f1", backgroundColor: "#6366f120", pointBackgroundColor: "#6366f1", borderWidth: 2.5, pointRadius: 4, tension: 0.3 },
+      { label: "Delivery", data: subRatingsByYear.map(d => d.delivery), borderColor: "#10b981", backgroundColor: "#10b98120", pointBackgroundColor: "#10b981", borderWidth: 2.5, pointRadius: 4, tension: 0.3 },
+      { label: "Value",    data: subRatingsByYear.map(d => d.value),    borderColor: "#f97316", backgroundColor: "#f9731620", pointBackgroundColor: "#f97316", borderWidth: 2.5, pointRadius: 4, tension: 0.3 },
+      { label: "Cust. Service", data: subRatingsByYear.map(d => d.custserv), borderColor: "#ec4899", backgroundColor: "#ec489920", pointBackgroundColor: "#ec4899", borderWidth: 2.5, pointRadius: 4, tension: 0.3 },
+      { label: "Overall",  data: subRatingsByYear.map(d => d.overall),  borderColor: "#111827", backgroundColor: "transparent", pointBackgroundColor: "#111827", borderDash: [5, 3], borderWidth: 2, pointRadius: 3, tension: 0.3 }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { position: "top", labels: { usePointStyle: true, padding: 20, font: { size: 12 } } },
+      tooltip: { backgroundColor: "#111827", callbacks: { label: c => c.dataset.label + ": " + c.parsed.y.toFixed(2) + " ★" } }
+    },
+    scales: {
+      x: { ticks: { font: { size: 12 }, color: "#374151" }, grid: { display: false } },
+      y: { min: 4.3, max: 5.0, ticks: { font: { size: 11 }, color: "#9ca3af", callback: v => v.toFixed(2) + " ★" }, grid: { color: "#f3f4f6" } }
+    }
+  }
+});
+
+// ============ MARKET DECLINE ============
+new Chart(document.getElementById("chartMarket").getContext("2d"), {
+  type: "bar",
+  data: {
+    labels: marketDecline.map(d => d.name),
+    datasets: [
+      { label: "2023", data: marketDecline.map(d => d.r2023), backgroundColor: "#a5b4fc", borderColor: "#6366f1", borderWidth: 1.5, borderRadius: 3 },
+      { label: "2025", data: marketDecline.map(d => d.r2025), backgroundColor: "#fca5a5", borderColor: "#ef4444", borderWidth: 1.5, borderRadius: 3 }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { position: "top", labels: { usePointStyle: true, padding: 16, font: { size: 12 } } },
+      tooltip: {
+        backgroundColor: "#111827",
+        callbacks: {
+          label: c => c.dataset.label + ": " + c.parsed.y.toFixed(2) + " ★",
+          afterBody: items => {
+            const d = marketDecline[items[0].dataIndex];
+            const delta = d.r2025 - d.r2023;
+            return "Δ " + (delta >= 0 ? "+" : "") + delta.toFixed(2) + " — 2025 n=" + d.n25;
+          }
+        }
+      }
+    },
+    scales: {
+      x: { ticks: { font: { size: 11 }, color: "#374151" }, grid: { display: false } },
+      y: { min: 2.5, max: 5.0, ticks: { font: { size: 11 }, color: "#9ca3af", callback: v => v.toFixed(1) + " ★" }, grid: { color: "#f3f4f6" } }
+    }
+  }
+});
+
+// Initial render
+document.getElementById("chartVolume").parentElement.style.height = "440px";
+setView("monthly");
+</script>
+</body>
+</html>
